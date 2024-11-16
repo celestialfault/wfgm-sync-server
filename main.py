@@ -14,14 +14,20 @@ from db import init_db, UserConfig, User
 from models import ErrorResponse, SuccessResponse
 
 
+SESSION = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
+
+
 @asynccontextmanager
-async def before_startup(_):
+async def lifecycle(_):
     load_dotenv()
     await init_db()
+
     yield
 
+    await SESSION.close()
 
-app = FastAPI(lifespan=before_startup)
+
+app = FastAPI(lifespan=lifecycle)
 
 
 class AuthError(RuntimeError):
@@ -34,15 +40,14 @@ class AuthError(RuntimeError):
 async def _validate(uuid: UUID4, server_id: str, username: str) -> Literal[True]:
     url = "https://sessionserver.mojang.com/session/minecraft/hasJoined"
     params = {"username": username, "serverId": server_id}
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as response:
-            response.raise_for_status()
-            json = await response.json()
-            if "id" not in json:
-                raise AuthError("Couldn't authenticate with Mojang")
-            if UUID(json.get("id")) != uuid:
-                raise AuthError("Authenticated user does not match")
-            return True
+    async with SESSION.get(url, params=params) as response:
+        response.raise_for_status()
+        json = await response.json()
+        if "id" not in json:
+            raise AuthError("Couldn't authenticate with Mojang")
+        if UUID(json.get("id")) != uuid:
+            raise AuthError("Authenticated user does not match")
+        return True
 
 
 @app.get("/", include_in_schema=False)
