@@ -14,11 +14,14 @@ from db import init_db, UserConfig, User
 from models import ErrorResponse, SuccessResponse
 
 
-SESSION = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
+SESSION: aiohttp.ClientSession = ...
 
 
 @asynccontextmanager
 async def lifecycle(_):
+    global SESSION
+
+    SESSION = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
     load_dotenv()
     await init_db()
 
