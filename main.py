@@ -47,7 +47,7 @@ async def _validate(uuid: UUID4, server_id: str, username: str) -> Literal[True]
 
 @app.get("/", include_in_schema=False)
 def home():
-    return RedirectResponse("/docs")
+    return RedirectResponse("https://modrinth.com/mod/female-gender")
 
 
 @app.put(

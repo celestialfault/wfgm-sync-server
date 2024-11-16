@@ -1,12 +1,26 @@
 from __future__ import annotations
 
+import enum
 import os
-import typing
 from datetime import timedelta
 
 from beanie import Document, init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, Field
+
+
+# fastapi docs suck for enums, so just document the ordinals in the doc string here
+class Gender(enum.IntEnum):
+    """Integer value referencing the ordinal value of the Gender enum in the mod
+
+    - `FEMALE`: 0
+    - `MALE`: 1
+    - `OTHER`: 2
+    """
+
+    FEMALE = 0
+    MALE = 1
+    OTHER = 2
 
 
 class UserConfig(BaseModel):
@@ -20,9 +34,7 @@ class UserConfig(BaseModel):
     ### NOTE TO CONTRIBUTORS: ##
     # All fields below MUST have their default value listed, otherwise things WILL break!
 
-    # Refers to ordinal value of Gender in the mod source
-    #  0 = female, 1 = male, 2 = other
-    gender: typing.Literal[0, 1, 2] = 1
+    gender: Gender = Gender.MALE
 
     bust_size: float = 0.6
     hurt_sounds: bool = True
