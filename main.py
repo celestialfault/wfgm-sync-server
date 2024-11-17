@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 from uuid import UUID
@@ -15,6 +16,7 @@ from models import ErrorResponse, SuccessResponse
 
 
 SESSION: aiohttp.ClientSession = ...
+logging.getLogger("uvicorn.access").setLevel(logging.WARN)
 
 
 @asynccontextmanager
