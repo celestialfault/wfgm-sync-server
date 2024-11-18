@@ -2,9 +2,16 @@ from datetime import datetime
 
 from pydantic import BaseModel, UUID4
 
+from db import UserConfig
+
 
 class SuccessResponse(BaseModel):
     success: bool = True
+
+
+class BulkQueryResponse(BaseModel):
+    success: bool = True
+    users: dict[UUID4, UserConfig]
 
 
 class AuthenticatedResponse(BaseModel):

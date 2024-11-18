@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
@@ -5,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 import aiohttp
+from beanie.operators import In
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.params import Query, Header
@@ -12,7 +14,7 @@ from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from db import init_db, UserConfig, User, UserAuth
-from models import ErrorResponse, SuccessResponse, AuthenticatedResponse
+from models import ErrorResponse, SuccessResponse, AuthenticatedResponse, BulkQueryResponse
 
 SESSION: aiohttp.ClientSession = ...
 
@@ -52,7 +54,9 @@ async def validate_session_server(server_id: str, username: str) -> UUID4:
     params = {"username": username, "serverId": server_id}
     async with SESSION.get(url, params=params) as response:
         if response.status >= 400:
-            raise AuthServerError(f"Session servers returned an unexpected response status {response.status}")
+            raise AuthServerError(
+                f"Session servers returned an unexpected response status {response.status}"
+            )
         json = await response.json()
         if error := json.get("error"):
             raise InvalidAuthenticationError(f"Session servers returned an error: {error}")
@@ -66,13 +70,47 @@ def home():
     return RedirectResponse("https://modrinth.com/mod/female-gender")
 
 
+# if only QUERY wasn't still a draft...
+@app.post(
+    "/",
+    response_model=BulkQueryResponse,
+    responses={400: {"model": ErrorResponse}},
+    summary="Get data for multiple players",
+)
+async def get_multiple_players(body: set[UUID4]):
+    """Get player data for up to 20 unique UUIDs at once
+
+    Any provided UUIDs that the server doesn't have any sync data for will simply be omitted from
+    the returned users object.
+    """
+    if not body:
+        return JSONResponse(
+            status_code=400, content={"success": False, "error": "No UUIDs were provided"}
+        )
+    if len(body) > 20:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "Bulk queries have a limit of 20 unique UUIDs at once",
+            },
+        )
+
+    return {
+        "success": True,
+        "users": {x.uuid: x.data async for x in User.find_many(In(User.uuid, body))},
+    }
+
+
 @app.get(
     "/auth",
     response_model=AuthenticatedResponse,
     responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-    summary="Get authentication token"
+    summary="Get authentication token",
 )
-async def get_auth(server_id: Annotated[str, Query(alias="serverId")], username: Annotated[str, Query()]):
+async def get_auth(
+    server_id: Annotated[str, Query(alias="serverId")], username: Annotated[str, Query()]
+):
     """Retrieve an authentication token used for updating player data
 
     This route requires [authenticating with Mojang's session servers](https://wiki.vg/Protocol_Encryption#Authentication).
@@ -87,9 +125,16 @@ async def get_auth(server_id: Annotated[str, Query(alias="serverId")], username:
         return JSONResponse(status_code=500, content={"success": False, "error": e.message})
     except InvalidAuthenticationError as e:
         return JSONResponse(status_code=403, content={"success": False, "error": e.message})
+    except asyncio.TimeoutError:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Couldn't reach the authentication servers"},
+        )
 
     await UserAuth.find_many(UserAuth.uuid == uuid).delete_many()
-    auth = UserAuth(uuid=uuid, token=secrets.token_urlsafe(32), created_at=datetime.now(timezone.utc))
+    auth = UserAuth(
+        uuid=uuid, token=secrets.token_urlsafe(32), created_at=datetime.now(timezone.utc)
+    )
     # noinspection PyArgumentList
     await auth.insert()
 
@@ -97,15 +142,19 @@ async def get_auth(server_id: Annotated[str, Query(alias="serverId")], username:
         "success": True,
         "token": auth.token,
         "account": auth.uuid,
-        "expires": auth.created_at + timedelta(hours=1)
+        "expires": auth.created_at + timedelta(hours=1),
     }
 
 
 @app.put(
     "/{uuid}",
     response_model=SuccessResponse,
-    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-    summary="Update player data"
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Update player data",
 )
 async def update_data(uuid: UUID4, auth_token: Annotated[str, Header()], body: UserConfig):
     """Stores the provided player data for the given authenticated user
@@ -115,9 +164,18 @@ async def update_data(uuid: UUID4, auth_token: Annotated[str, Header()], body: U
 
     auth = await UserAuth.find_one(UserAuth.token == auth_token)
     if not auth:
-        return JSONResponse(status_code=401, content={"success": False, "error": "Authentication is invalid or has expired"})
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Authentication is invalid or has expired"},
+        )
     if auth.uuid != uuid:
-        return JSONResponse(status_code=403, content={"success": False, "error": "The given authentication is not valid for the current user"})
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "The given authentication is not valid for the current user",
+            },
+        )
 
     user = await User.find_one_or_create(uuid)
     user.data = body
