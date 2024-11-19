@@ -83,9 +83,13 @@ async def get_multiple_players(body: set[UUID4]):
     Any provided UUIDs that the server doesn't have any sync data for will simply be omitted from
     the returned users object.
     """
-    if not body:
+    if len(body) < 2:
         return JSONResponse(
-            status_code=400, content={"success": False, "error": "No UUIDs were provided"}
+            status_code=400,
+            content={
+                "success": False,
+                "error": "This route requires at least 2 unique UUIDs to be provided",
+            },
         )
     if len(body) > 20:
         return JSONResponse(
