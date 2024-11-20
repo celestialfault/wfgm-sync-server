@@ -14,6 +14,11 @@ class BulkQueryResponse(BaseModel):
     users: dict[UUID4, UserConfig]
 
 
+class StatsResponse(BaseModel):
+    synced_users: int
+    timestamp: datetime
+
+
 class AuthenticatedResponse(BaseModel):
     success: bool = True
     token: str

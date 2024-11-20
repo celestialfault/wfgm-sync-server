@@ -14,7 +14,13 @@ from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from db import init_db, UserConfig, User, UserAuth
-from models import ErrorResponse, SuccessResponse, AuthenticatedResponse, BulkQueryResponse
+from models import (
+    ErrorResponse,
+    SuccessResponse,
+    AuthenticatedResponse,
+    BulkQueryResponse,
+    StatsResponse,
+)
 
 SESSION: aiohttp.ClientSession = ...
 
@@ -104,6 +110,11 @@ async def get_multiple_players(body: set[UUID4]):
         "success": True,
         "users": {x.uuid: x.data async for x in User.find_many(In(User.uuid, body))},
     }
+
+
+@app.get("/stats", response_model=StatsResponse, summary="Get sync server statistics")
+async def stats():
+    return {"synced_users": await User.count(), "timestamp": datetime.now(timezone.utc)}
 
 
 @app.get(
