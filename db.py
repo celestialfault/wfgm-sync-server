@@ -63,6 +63,8 @@ class UserConfig(BaseModel):
     bounce_multiplier: float = 0.333
     floppy_multiplier: float = 0.75
 
+    voice_pitch: float = 1.0
+
     class Settings:
         use_cache = True
         cache_expiration_time = timedelta(minutes=10)
