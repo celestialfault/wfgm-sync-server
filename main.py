@@ -64,9 +64,7 @@ async def validate_session_server(server_id: str, username: str) -> UUID4:
                 f"Session servers returned an unexpected response status {response.status}"
             )
         json = await response.json()
-        if error := json.get("error"):
-            raise InvalidAuthenticationError(f"Session servers returned an error: {error}")
-        if "id" not in json:
+        if not json or "id" not in json:
             raise InvalidAuthenticationError("Couldn't authenticate with Mojang")
         return UUID(json["id"])
 
