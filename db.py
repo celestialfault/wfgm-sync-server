@@ -41,7 +41,7 @@ class UserConfig(BaseModel):
     allowed ranges.
     """
 
-    username: UUID4
+    # username is intentionally skipped
 
     ### NOTE TO CONTRIBUTORS: ##
     # All fields below MUST have their default value listed, otherwise things WILL break!
