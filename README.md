@@ -17,4 +17,12 @@ poetry install
 poetry run fastapi run
 ```
 
+Afterwards, point the mod at your server by setting `cloud_server` in `config/wildfire_gender.json` to your server,
+such as `https://wfgm.example.com`.
+
+Note that there is a known issue where the mod will fail to sync player data to the server if it isn't running over
+HTTPS - this issue is automatically worked around if you're in a development environment (to allow for local development),
+but this otherwise effectively forces an HTTPS requirement for production deployments (which you should already be doing
+to begin with).
+
 [Wildfire's Female Gender Mod]: https://github.com/WildfireRomeo/WildfireFemaleGenderMod

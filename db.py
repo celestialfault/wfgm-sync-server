@@ -33,8 +33,9 @@ class UserAuth(Document):
 class UserConfig(BaseModel):
     """User configuration model storing the same data the mod stores locally
 
-    All fields not present in this model will be ignored when the mod sends the client's settings
-    to the server.
+    Any provided key-value pairs not in this model will be ignored by the server when pushing an
+    update to a player's settings. Similarly, any keys not provided will revert to their
+    default values.
 
     Note that the server does not validate the allowed range for any number values; any clients
     consuming this data should ensure that they restrict any received values to the relevant
