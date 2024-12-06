@@ -7,6 +7,7 @@ A minimal web server built with FastAPI, providing cloud sync capabilities for [
 This requires the following to run:
 
 - A MongoDB server with replication support enabled
+  - [MongoDB Atlas](https://www.mongodb.com/atlas) provides free databases with to 512 MB of storage, suitable for local development
 - Python 3.10 or newer
 - [Poetry](https://python-poetry.org/)
 

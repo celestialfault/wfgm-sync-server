@@ -72,14 +72,20 @@ class UserConfig(BaseModel):
         cache_capacity = 2048
 
 
+class ContributorNametag(BaseModel):
+    text: str
+    color: int | None = None
+
+
 class User(Document):
     uuid: Annotated[UUID4, Indexed()]
     data: UserConfig
+    nametag: ContributorNametag | None = None
 
     @classmethod
     async def find_one_or_create(cls, uuid: UUID4) -> User:
         existing = await cls.find_one(User.uuid == uuid)
-        return existing or cls(uuid=uuid, data=UserConfig(username=uuid))
+        return existing or cls(uuid=uuid, data=UserConfig())
 
 
 async def init_db():

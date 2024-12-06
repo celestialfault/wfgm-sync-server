@@ -13,7 +13,7 @@ from fastapi.params import Query, Header
 from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
-from db import init_db, UserConfig, User, UserAuth
+from db import init_db, UserConfig, User, UserAuth, ContributorNametag
 from models import (
     ErrorResponse,
     SuccessResponse,
@@ -110,11 +110,22 @@ async def get_multiple_players(body: set[UUID4]):
     }
 
 
+@app.get(
+    "/contributors",
+    response_model=dict[UUID4, ContributorNametag],
+    summary="Get contributor nametags",
+)
+async def contributors():
+    # noinspection PyComparisonWithNone
+    return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
+
+
 @app.get("/stats", response_model=StatsResponse, summary="Get sync server statistics")
 async def stats():
     return {"synced_users": await User.count(), "timestamp": datetime.now(timezone.utc)}
 
 
+# TODO wiki.vg is no more; update the link in the docstring here with a minecraft.wiki one at some point
 @app.get(
     "/auth",
     response_model=AuthenticatedResponse,
