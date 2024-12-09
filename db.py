@@ -65,6 +65,7 @@ class UserConfig(BaseModel):
     floppy_multiplier: float = 0.75
 
     voice_pitch: float = 1.0
+    holiday_themes: bool = True
 
     class Settings:
         use_cache = True
