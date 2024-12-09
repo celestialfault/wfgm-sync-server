@@ -1,4 +1,5 @@
 import asyncio
+import os
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
@@ -118,6 +119,34 @@ async def get_multiple_players(body: set[UUID4]):
 async def contributors():
     # noinspection PyComparisonWithNone
     return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
+
+
+@app.put("/contributor/{uuid}")
+async def update_contributor(uuid: UUID4, auth_token: Annotated[str, Header()], body: ContributorNametag):
+    if auth_token != os.environ["ADMIN_TOKEN"]:
+        return PlainTextResponse(status_code=401)
+
+    user = await User.find_one(User.uuid == uuid)
+    if user is None:
+        user = User(uuid=uuid, data=UserConfig())
+        # noinspection PyArgumentList
+        await user.insert()
+    await user.set({User.nametag: body})
+
+    return {"success": True}
+
+
+@app.delete("/contributor/{uuid}")
+async def delete_contributor(uuid: UUID4, auth_token: Annotated[str, Header()]):
+    if auth_token != os.environ["ADMIN_TOKEN"]:
+        return PlainTextResponse(status_code=401)
+
+    user = await User.find_one(User.uuid == uuid)
+    if user is None:
+        return JSONResponse(status_code=404, content={"success": False, "error": "No such user exists"})
+    await user.set({User.nametag: None})
+
+    return {"success": True}
 
 
 @app.get("/stats", response_model=StatsResponse, summary="Get sync server statistics")
