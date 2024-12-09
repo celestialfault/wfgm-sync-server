@@ -121,8 +121,16 @@ async def contributors():
     return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
 
 
-@app.put("/contributor/{uuid}")
-async def update_contributor(uuid: UUID4, auth_token: Annotated[str, Header()], body: ContributorNametag):
+@app.put(
+    "/contributor/{uuid}",
+    response_model=SuccessResponse,
+    responses={401: {}},
+    summary="Update contributor nametag",
+)
+async def update_contributor(
+    uuid: UUID4, auth_token: Annotated[str, Header()], body: ContributorNametag
+):
+    """Internal endpoint, updates the nametag stored for a contributor"""
     if auth_token != os.environ["ADMIN_TOKEN"]:
         return PlainTextResponse(status_code=401)
 
@@ -136,14 +144,22 @@ async def update_contributor(uuid: UUID4, auth_token: Annotated[str, Header()], 
     return {"success": True}
 
 
-@app.delete("/contributor/{uuid}")
+@app.delete(
+    "/contributor/{uuid}",
+    response_model=SuccessResponse,
+    responses={401: {}, 404: {"model": ErrorResponse}},
+    summary="Delete contributor nametag",
+)
 async def delete_contributor(uuid: UUID4, auth_token: Annotated[str, Header()]):
+    """Internal endpoint, deletes any nametag stored for a contributor"""
     if auth_token != os.environ["ADMIN_TOKEN"]:
         return PlainTextResponse(status_code=401)
 
     user = await User.find_one(User.uuid == uuid)
     if user is None:
-        return JSONResponse(status_code=404, content={"success": False, "error": "No such user exists"})
+        return JSONResponse(
+            status_code=404, content={"success": False, "error": "No such user exists"}
+        )
     await user.set({User.nametag: None})
 
     return {"success": True}
