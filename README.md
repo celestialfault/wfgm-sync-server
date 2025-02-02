@@ -14,11 +14,11 @@ This requires the following to run:
 ```sh
 git clone https://github.com/celestialfault/wfgm-sync-server.git
 cd wfgm-sync-server
-poetry install
+poetry install --only main
 poetry run fastapi run
 ```
 
-Afterwards, point the mod at your server by setting `cloud_server` in `config/wildfire_gender.json` to your server,
+Afterward, point the mod at your server by setting `cloud_server` in `config/wildfire_gender.json` to your server,
 such as `https://wfgm.example.com`.
 
 Note that there is a known issue where the mod will fail to sync player data to the server if it isn't running over

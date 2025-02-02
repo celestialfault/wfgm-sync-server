@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -33,6 +34,8 @@ async def lifecycle(_):
     SESSION = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
     load_dotenv()
     await init_db()
+
+    logging.getLogger("uvicorn.access").disabled = True
 
     yield
 
