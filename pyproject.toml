@@ -7,9 +7,9 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-fastapi = {extras = ["standard"], version = "^0.115.5"}
-aiohttp = "^3.11.2"
-beanie = "^1.27.0"
+fastapi = {extras = ["standard"], version = "^0.115.8"}
+aiohttp = "^3.11.11"
+beanie = "^1.29.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.10.0"
