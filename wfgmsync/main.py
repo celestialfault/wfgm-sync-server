@@ -9,16 +9,16 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Query, Header
 from pydantic import UUID4
 
-from wfmsync import common
-from wfmsync.db import init_db, User, ContributorNametag, UserConfig
-from wfmsync.models import (
+from wfgmsync import common
+from wfgmsync.db import init_db, User, ContributorNametag, UserConfig
+from wfgmsync.models import (
     StatsResponse,
     ErrorResponse,
     BulkQueryResponse,
     AuthenticatedResponse,
     SuccessResponse,
 )
-from wfmsync.routes import v1, v2, contributors
+from wfgmsync.routes import v1, v2, contributors
 
 
 @asynccontextmanager

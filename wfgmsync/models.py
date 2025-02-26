@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, UUID4
 
-from wfmsync.db import UserConfig
+from wfgmsync.db import UserConfig
 
 
 class SuccessResponse(BaseModel):

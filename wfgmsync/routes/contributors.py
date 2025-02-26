@@ -5,10 +5,16 @@ from fastapi import FastAPI, Header
 from pydantic import UUID4
 from starlette.responses import PlainTextResponse, JSONResponse
 
-from wfmsync.db import ContributorNametag, User, UserConfig
-from wfmsync.models import SuccessResponse, ErrorResponse
+from wfgmsync.db import ContributorNametag, User, UserConfig
+from wfgmsync.models import SuccessResponse, ErrorResponse
 
-app = FastAPI(docs_url="/", description="Internal endpoints for managing contributor nametags")
+app = FastAPI(
+    docs_url="/",
+    description="""
+Internal endpoints for managing contributor nametags through Discord; these routes are not
+intended for public consumption.
+""",
+)
 
 
 @app.put(

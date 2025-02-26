@@ -6,9 +6,9 @@ from fastapi import FastAPI, Header, Query
 from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from wfmsync.auth import authenticate_from_mojang
-from wfmsync.db import User, UserConfig, UserAuth
-from wfmsync.models import BulkQueryResponse, ErrorResponse, SuccessResponse, AuthenticatedResponse
+from wfgmsync.auth import authenticate_from_mojang
+from wfgmsync.db import User, UserConfig, UserAuth
+from wfgmsync.models import BulkQueryResponse, ErrorResponse, SuccessResponse, AuthenticatedResponse
 
 app = FastAPI(
     docs_url="/",
