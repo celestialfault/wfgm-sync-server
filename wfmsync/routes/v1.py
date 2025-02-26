@@ -1,0 +1,207 @@
+import asyncio
+import os
+import secrets
+from datetime import datetime, timezone, timedelta
+from typing import Annotated
+
+from beanie.odm.operators.find.comparison import In
+from fastapi import FastAPI, Header, Query
+from pydantic import UUID4
+from starlette.responses import JSONResponse, PlainTextResponse
+
+from wfmsync.auth import validate_session_server, AuthServerError, InvalidAuthenticationError
+from wfmsync.db import User, ContributorNametag, UserConfig, UserAuth
+from wfmsync.models import (
+    BulkQueryResponse,
+    ErrorResponse,
+    SuccessResponse,
+    StatsResponse,
+    AuthenticatedResponse,
+)
+
+v1 = FastAPI()
+
+
+# if only QUERY wasn't still a draft...
+@v1.post(
+    "/",
+    response_model=BulkQueryResponse,
+    responses={400: {"model": ErrorResponse}},
+    summary="Get data for multiple players",
+)
+async def get_multiple_players(body: set[UUID4]):
+    """Get player data for up to 20 unique UUIDs at once
+
+    Any provided UUIDs that the server doesn't have any sync data for will simply be omitted from
+    the returned users object.
+    """
+    if len(body) < 2:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "This route requires at least 2 unique UUIDs to be provided",
+            },
+        )
+    if len(body) > 20:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": "Bulk queries have a limit of 20 unique UUIDs at once",
+            },
+        )
+
+    return {
+        "success": True,
+        "users": {x.uuid: x.data async for x in User.find_many(In(User.uuid, body))},
+    }
+
+
+@v1.get(
+    "/contributors",
+    response_model=dict[UUID4, ContributorNametag],
+    summary="Get contributor nametags",
+)
+async def contributors():
+    # noinspection PyComparisonWithNone
+    return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
+
+
+@v1.put(
+    "/contributor/{uuid}",
+    response_model=SuccessResponse,
+    responses={401: {}},
+    summary="Update contributor nametag",
+)
+async def update_contributor(
+    uuid: UUID4, auth_token: Annotated[str, Header()], body: ContributorNametag
+):
+    """Internal endpoint, updates the nametag stored for a contributor"""
+    if auth_token != os.environ["ADMIN_TOKEN"]:
+        return PlainTextResponse(status_code=401)
+
+    user = await User.find_one(User.uuid == uuid)
+    if user is None:
+        user = User(uuid=uuid, data=UserConfig())
+        # noinspection PyArgumentList
+        await user.insert()
+    await user.set({User.nametag: body})
+
+    return {"success": True}
+
+
+@v1.delete(
+    "/contributor/{uuid}",
+    response_model=SuccessResponse,
+    responses={401: {}, 404: {"model": ErrorResponse}},
+    summary="Delete contributor nametag",
+)
+async def delete_contributor(uuid: UUID4, auth_token: Annotated[str, Header()]):
+    """Internal endpoint, deletes any nametag stored for a contributor"""
+    if auth_token != os.environ["ADMIN_TOKEN"]:
+        return PlainTextResponse(status_code=401)
+
+    user = await User.find_one(User.uuid == uuid)
+    if user is None:
+        return JSONResponse(
+            status_code=404, content={"success": False, "error": "No such user exists"}
+        )
+    await user.set({User.nametag: None})
+
+    return {"success": True}
+
+
+@v1.get("/stats", response_model=StatsResponse, summary="Get sync server statistics")
+async def stats():
+    return {"synced_users": await User.count(), "timestamp": datetime.now(timezone.utc)}
+
+
+# TODO wiki.vg is no more; update the link in the docstring here with a minecraft.wiki one at some point
+@v1.get(
+    "/auth",
+    response_model=AuthenticatedResponse,
+    responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    summary="Get authentication token",
+)
+async def get_auth(
+    server_id: Annotated[str, Query(alias="serverId")], username: Annotated[str, Query()]
+):
+    """Retrieve an authentication token used for updating player data
+
+    This route requires [authenticating with Mojang's session servers](https://wiki.vg/Protocol_Encryption#Authentication).
+
+    The provided authentication token will expire after 1 hour.
+
+    Any authentication tokens that haven't yet expired will be invalidated after obtaining a new token.
+    """
+    try:
+        uuid = await validate_session_server(server_id, username)
+    except AuthServerError as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": e.message})
+    except InvalidAuthenticationError as e:
+        return JSONResponse(status_code=403, content={"success": False, "error": e.message})
+    except asyncio.TimeoutError:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Couldn't reach the authentication servers"},
+        )
+
+    await UserAuth.find_many(UserAuth.uuid == uuid).delete_many()
+    auth = UserAuth(
+        uuid=uuid, token=secrets.token_urlsafe(32), created_at=datetime.now(timezone.utc)
+    )
+    # noinspection PyArgumentList
+    await auth.insert()
+
+    return {
+        "success": True,
+        "token": auth.token,
+        "account": auth.uuid,
+        "expires": auth.created_at + timedelta(hours=1),
+    }
+
+
+@v1.put(
+    "/{uuid}",
+    response_model=SuccessResponse,
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="Update player data",
+)
+async def update_data(uuid: UUID4, auth_token: Annotated[str, Header()], body: UserConfig):
+    """Stores the provided player data for the given authenticated user
+
+    This requires an `Auth-Token` header provided from the `/auth` route.
+    """
+
+    auth = await UserAuth.find_one(UserAuth.token == auth_token)
+    if not auth:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Authentication is invalid or has expired"},
+        )
+    if auth.uuid != uuid:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "The given authentication is not valid for the current user",
+            },
+        )
+
+    user = await User.find_one_or_create(uuid)
+    user.data = body
+    # shut up pycharm
+    # noinspection PyArgumentList
+    await user.save()
+    return {"success": True}
+
+
+@v1.get("/{uuid}", response_model=UserConfig, responses={404: {}}, summary="Get player data")
+async def get_player(uuid: UUID4):
+    user = await User.find_one(User.uuid == uuid)
+    return user and user.data or PlainTextResponse(status_code=404)
