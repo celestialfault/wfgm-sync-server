@@ -1,7 +1,4 @@
-import asyncio
-import os
-import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from typing import Annotated
 
 from beanie.odm.operators.find.comparison import In
@@ -9,21 +6,19 @@ from fastapi import FastAPI, Header, Query
 from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from wfmsync.auth import validate_session_server, AuthServerError, InvalidAuthenticationError
-from wfmsync.db import User, ContributorNametag, UserConfig, UserAuth
-from wfmsync.models import (
-    BulkQueryResponse,
-    ErrorResponse,
-    SuccessResponse,
-    StatsResponse,
-    AuthenticatedResponse,
-)
+from wfmsync.auth import authenticate_from_mojang
+from wfmsync.db import User, UserConfig, UserAuth
+from wfmsync.models import BulkQueryResponse, ErrorResponse, SuccessResponse, AuthenticatedResponse
 
-v1 = FastAPI()
+app = FastAPI(
+    docs_url="/",
+    version="1.0.0",
+    description="Older, less supported API routes; you should prefer using [v2](/v2/) in new applications.",
+)
 
 
 # if only QUERY wasn't still a draft...
-@v1.post(
+@app.post(
     "/",
     response_model=BulkQueryResponse,
     responses={400: {"model": ErrorResponse}},
@@ -52,73 +47,13 @@ async def get_multiple_players(body: set[UUID4]):
             },
         )
 
-    return {
-        "success": True,
-        "users": {x.uuid: x.data async for x in User.find_many(In(User.uuid, body))},
-    }
-
-
-@v1.get(
-    "/contributors",
-    response_model=dict[UUID4, ContributorNametag],
-    summary="Get contributor nametags",
-)
-async def contributors():
-    # noinspection PyComparisonWithNone
-    return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
-
-
-@v1.put(
-    "/contributor/{uuid}",
-    response_model=SuccessResponse,
-    responses={401: {}},
-    summary="Update contributor nametag",
-)
-async def update_contributor(
-    uuid: UUID4, auth_token: Annotated[str, Header()], body: ContributorNametag
-):
-    """Internal endpoint, updates the nametag stored for a contributor"""
-    if auth_token != os.environ["ADMIN_TOKEN"]:
-        return PlainTextResponse(status_code=401)
-
-    user = await User.find_one(User.uuid == uuid)
-    if user is None:
-        user = User(uuid=uuid, data=UserConfig())
-        # noinspection PyArgumentList
-        await user.insert()
-    await user.set({User.nametag: body})
-
-    return {"success": True}
-
-
-@v1.delete(
-    "/contributor/{uuid}",
-    response_model=SuccessResponse,
-    responses={401: {}, 404: {"model": ErrorResponse}},
-    summary="Delete contributor nametag",
-)
-async def delete_contributor(uuid: UUID4, auth_token: Annotated[str, Header()]):
-    """Internal endpoint, deletes any nametag stored for a contributor"""
-    if auth_token != os.environ["ADMIN_TOKEN"]:
-        return PlainTextResponse(status_code=401)
-
-    user = await User.find_one(User.uuid == uuid)
-    if user is None:
-        return JSONResponse(
-            status_code=404, content={"success": False, "error": "No such user exists"}
-        )
-    await user.set({User.nametag: None})
-
-    return {"success": True}
-
-
-@v1.get("/stats", response_model=StatsResponse, summary="Get sync server statistics")
-async def stats():
-    return {"synced_users": await User.count(), "timestamp": datetime.now(timezone.utc)}
+    return BulkQueryResponse(
+        users={x.uuid: x.data async for x in User.find_many(In(User.uuid, body))},
+    )
 
 
 # TODO wiki.vg is no more; update the link in the docstring here with a minecraft.wiki one at some point
-@v1.get(
+@app.get(
     "/auth",
     response_model=AuthenticatedResponse,
     responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
@@ -135,25 +70,7 @@ async def get_auth(
 
     Any authentication tokens that haven't yet expired will be invalidated after obtaining a new token.
     """
-    try:
-        uuid = await validate_session_server(server_id, username)
-    except AuthServerError as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": e.message})
-    except InvalidAuthenticationError as e:
-        return JSONResponse(status_code=403, content={"success": False, "error": e.message})
-    except asyncio.TimeoutError:
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error": "Couldn't reach the authentication servers"},
-        )
-
-    await UserAuth.find_many(UserAuth.uuid == uuid).delete_many()
-    auth = UserAuth(
-        uuid=uuid, token=secrets.token_urlsafe(32), created_at=datetime.now(timezone.utc)
-    )
-    # noinspection PyArgumentList
-    await auth.insert()
-
+    auth = await authenticate_from_mojang(username, server_id)
     return {
         "success": True,
         "token": auth.token,
@@ -162,7 +79,7 @@ async def get_auth(
     }
 
 
-@v1.put(
+@app.put(
     "/{uuid}",
     response_model=SuccessResponse,
     responses={
@@ -201,7 +118,7 @@ async def update_data(uuid: UUID4, auth_token: Annotated[str, Header()], body: U
     return {"success": True}
 
 
-@v1.get("/{uuid}", response_model=UserConfig, responses={404: {}}, summary="Get player data")
+@app.get("/{uuid}", response_model=UserConfig, responses={404: {}}, summary="Get player data")
 async def get_player(uuid: UUID4):
     user = await User.find_one(User.uuid == uuid)
     return user and user.data or PlainTextResponse(status_code=404)
