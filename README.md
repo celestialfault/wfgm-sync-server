@@ -2,6 +2,8 @@
 
 A minimal web server built with FastAPI, providing cloud sync capabilities for [Wildfire's Female Gender Mod].
 
+This project is licensed under the [GNU AGPL, version 3](./LICENSE).
+
 ## Running your own
 
 This requires the following to run:
