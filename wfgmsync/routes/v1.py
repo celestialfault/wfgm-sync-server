@@ -1,4 +1,3 @@
-from datetime import timedelta
 from typing import Annotated
 
 from beanie.odm.operators.find.comparison import In
@@ -6,18 +5,25 @@ from fastapi import FastAPI, Header, Query
 from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from wfgmsync.auth import authenticate_from_mojang
-from wfgmsync.db import User, UserConfig, UserAuth
+from wfgmsync.auth import authenticate_from_mojang, AuthenticationError
+from wfgmsync.db import User, UserConfig, UserAuth, ContributorNametag
 from wfgmsync.models import BulkQueryResponse, ErrorResponse, SuccessResponse, AuthenticatedResponse
+from wfgmsync.routes import contributors
 
 app = FastAPI(
     docs_url="/",
     version="1.0.0",
     description="Older, less supported API routes; you should prefer using [v2](/v2/) in new applications.",
+    # deprecated = True,  # TODO mark this as deprecated once there's enough usage of the v2 routes
 )
 
+app.get(
+    "/contributors",
+    response_model=dict[UUID4, ContributorNametag],
+    summary="Get contributor nametags",
+)(contributors.contributors)
 
-# if only QUERY wasn't still a draft...
+
 @app.post(
     "/",
     response_model=BulkQueryResponse,
@@ -70,12 +76,18 @@ async def get_auth(
 
     Any authentication tokens that haven't yet expired will be invalidated after obtaining a new token.
     """
-    auth = await authenticate_from_mojang(username, server_id)
+    try:
+        auth = await authenticate_from_mojang(username, server_id)
+    except AuthenticationError as e:
+        return JSONResponse(
+            content={"success": False, "error": e.message}, status_code=e.response_code
+        )
+
     return {
         "success": True,
         "token": auth.token,
         "account": auth.uuid,
-        "expires": auth.created_at + timedelta(hours=1),
+        "expires": auth.created_at + UserAuth.EXPIRE_AFTER,
     }
 
 
@@ -94,7 +106,6 @@ async def update_data(uuid: UUID4, auth_token: Annotated[str, Header()], body: U
 
     This requires an `Auth-Token` header provided from the `/auth` route.
     """
-
     auth = await UserAuth.find_one(UserAuth.token == auth_token)
     if not auth:
         return JSONResponse(

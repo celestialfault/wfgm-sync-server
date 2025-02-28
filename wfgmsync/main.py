@@ -2,11 +2,10 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import timezone, datetime
-from typing import Annotated
 
 import aiohttp
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query, Header
+from fastapi import FastAPI
 from pydantic import UUID4
 
 from wfgmsync import common
@@ -58,58 +57,48 @@ async def stats():
     return {"synced_users": await User.count(), "timestamp": datetime.now(timezone.utc)}
 
 
-@app.get(
+# region Legacy stub routes
+
+app.get(
     "/contributors",
     response_model=dict[UUID4, ContributorNametag],
     summary="Get contributor nametags",
-)
-async def contributors():
-    # noinspection PyComparisonWithNone
-    return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
+    description="**Deprecated:** This route is a legacy alias for `GET /v1/contributors`",
+    deprecated=True,
+)(contributors.contributors)
 
 
-# region Legacy stub routes
-
-
-@app.post(
+app.post(
     "/",
     response_model=BulkQueryResponse,
     responses={400: {"model": ErrorResponse}},
     summary="Get data for multiple players",
+    description="**Deprecated:** This route is a legacy alias for `POST /v1/`",
     deprecated=True,
-)
-async def bulk_query(body: set[UUID4]):
-    """**Deprecated:** This route is a legacy alias for `POST /v1/`"""
-    return await v1.get_multiple_players(body)
+)(v1.get_multiple_players)
 
 
-@app.get(
+app.get(
     "/{uuid}",
     response_model=UserConfig,
     responses={404: {}},
     summary="Get player data",
+    description="**Deprecated:** This route is a legacy alias for `GET /v1/{uuid}`",
     deprecated=True,
-)
-async def get_player(uuid: UUID4):
-    """**Deprecated:** This route is a legacy alias for `GET /v1/{uuid}`"""
-    return await v1.get_player(uuid)
+)(v1.get_player)
 
 
-@app.get(
+app.get(
     "/auth",
     response_model=AuthenticatedResponse,
     responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
     summary="Get authentication token",
+    description="**Deprecated:** This route is a legacy alias for `GET /v1/auth`",
     deprecated=True,
-)
-async def get_auth(
-    server_id: Annotated[str, Query(alias="serverId")], username: Annotated[str, Query()]
-):
-    """**Deprecated:** This route is a legacy alias for `GET /v1/auth`"""
-    return await v1.get_auth(server_id, username)
+)(v1.get_auth)
 
 
-@app.put(
+app.put(
     "/{uuid}",
     response_model=SuccessResponse,
     responses={
@@ -118,11 +107,9 @@ async def get_auth(
         500: {"model": ErrorResponse},
     },
     summary="Update player data",
+    description="**Deprecated:** This route is a legacy alias for `PUT /v1/{uuid}`",
     deprecated=True,
-)
-async def update_data(uuid: UUID4, auth_token: Annotated[str, Header()], body: UserConfig):
-    """**Deprecated:** This route is a legacy alias for `PUT /v1/{uuid}`"""
-    return await v1.update_data(uuid, auth_token, body)
+)(v1.update_data)
 
 
 # endregion

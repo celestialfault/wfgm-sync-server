@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import os
 from datetime import timedelta, datetime
-from typing import Annotated
+from typing import Annotated, ClassVar
 
 from beanie import Document, init_beanie, Indexed
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -25,9 +25,11 @@ class Gender(enum.IntEnum):
 
 
 class UserAuth(Document):
+    EXPIRE_AFTER: ClassVar[timedelta] = timedelta(hours=1)
+
     uuid: UUID4
     token: Annotated[str, Indexed(unique=True)]
-    created_at: Annotated[datetime, Indexed(expireAfterSeconds=60 * 60)]
+    created_at: Annotated[datetime, Indexed(expireAfterSeconds=EXPIRE_AFTER.total_seconds())]
 
 
 class UserConfig(BaseModel):

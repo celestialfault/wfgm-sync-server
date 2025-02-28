@@ -34,6 +34,11 @@ async def authenticate(token: str | None, username: str | None, server_id: str |
             )
         return auth
 
+    if username is None or server_id is None:
+        raise InvalidAuthenticationError(
+            "An authentication token or Mojang authentication is required", 401
+        )
+
     return await authenticate_from_mojang(username, server_id)
 
 
@@ -43,7 +48,7 @@ async def authenticate_from_mojang(username: str, server_id: str) -> UserAuth:
             "An authentication token or session server authentication is required", 401
         )
 
-    uuid = await validate_session_server(server_id, username)
+    uuid = await validate_session_server(username, server_id)
     await UserAuth.find_many(UserAuth.uuid == uuid).delete_many()
     auth = UserAuth(
         uuid=uuid, token=secrets.token_urlsafe(32), created_at=datetime.now(timezone.utc)
@@ -53,7 +58,7 @@ async def authenticate_from_mojang(username: str, server_id: str) -> UserAuth:
     return auth
 
 
-async def validate_session_server(server_id: str, username: str) -> UUID4:
+async def validate_session_server(username: str, server_id: str) -> UUID4:
     url = "https://sessionserver.mojang.com/session/minecraft/hasJoined"
     params = {"username": username, "serverId": server_id}
     async with common.session.get(url, params=params) as response:

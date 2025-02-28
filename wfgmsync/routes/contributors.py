@@ -17,6 +17,11 @@ intended for public consumption.
 )
 
 
+async def contributors():
+    # noinspection PyComparisonWithNone
+    return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
+
+
 @app.put(
     "/contributor/{uuid}",
     response_model=SuccessResponse,
