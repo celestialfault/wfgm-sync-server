@@ -1,11 +1,10 @@
 from typing import Annotated
 
-from beanie.odm.operators.find.comparison import In
 from fastapi import FastAPI, Header, Query
 from pydantic import UUID4
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from wfgmsync.auth import authenticate_from_mojang, AuthenticationError
+from wfgmsync.auth import create_mojang_auth
 from wfgmsync.db import User, UserConfig, UserAuth, ContributorNametag
 from wfgmsync.models import BulkQueryResponse, ErrorResponse, SuccessResponse, AuthenticatedResponse
 from wfgmsync.routes import contributors
@@ -24,12 +23,7 @@ app.get(
 )(contributors.contributors)
 
 
-@app.post(
-    "/",
-    response_model=BulkQueryResponse,
-    responses={400: {"model": ErrorResponse}},
-    summary="Get data for multiple players",
-)
+@app.post("/", response_model=BulkQueryResponse, summary="Get data for multiple players")
 async def get_multiple_players(body: set[UUID4]):
     """Get player data for up to 20 unique UUIDs at once
 
@@ -40,7 +34,6 @@ async def get_multiple_players(body: set[UUID4]):
         return JSONResponse(
             status_code=400,
             content={
-                "success": False,
                 "error": "This route requires at least 2 unique UUIDs to be provided",
             },
         )
@@ -48,14 +41,11 @@ async def get_multiple_players(body: set[UUID4]):
         return JSONResponse(
             status_code=400,
             content={
-                "success": False,
                 "error": "Bulk queries have a limit of 20 unique UUIDs at once",
             },
         )
 
-    return BulkQueryResponse(
-        users={x.uuid: x.data async for x in User.find_many(In(User.uuid, body))},
-    )
+    return await BulkQueryResponse.find(body)
 
 
 # TODO wiki.vg is no more; update the link in the docstring here with a minecraft.wiki one at some point
@@ -76,13 +66,7 @@ async def get_auth(
 
     Any authentication tokens that haven't yet expired will be invalidated after obtaining a new token.
     """
-    try:
-        auth = await authenticate_from_mojang(username, server_id)
-    except AuthenticationError as e:
-        return JSONResponse(
-            content={"success": False, "error": e.message}, status_code=e.response_code
-        )
-
+    auth = await create_mojang_auth(username, server_id)
     return {
         "success": True,
         "token": auth.token,

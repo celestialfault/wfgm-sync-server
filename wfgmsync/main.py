@@ -43,7 +43,7 @@ Sync server for [Female Gender Mod](https://github.com/WildfireRomeo/WildfireFem
 for documentation on all available routes, see also:
 
 - [v2](/v2/)
-- [v1](/v1/)
+- [v1](/v1/) (legacy)
 - [contributor](/contributor/) (internal)
 """,
 )
@@ -78,16 +78,8 @@ app.post(
 )(v1.get_multiple_players)
 
 
-app.get(
-    "/{uuid}",
-    response_model=UserConfig,
-    responses={404: {}},
-    summary="Get player data",
-    description="**Deprecated:** This route is a legacy alias for `GET /v1/{uuid}`",
-    deprecated=True,
-)(v1.get_player)
-
-
+# this has to be above the /{uuid} route to not get shadowed by it
+# (which is a perfect example as to why these v2 routes should've happened a lot sooner)
 app.get(
     "/auth",
     response_model=AuthenticatedResponse,
@@ -96,6 +88,16 @@ app.get(
     description="**Deprecated:** This route is a legacy alias for `GET /v1/auth`",
     deprecated=True,
 )(v1.get_auth)
+
+
+app.get(
+    "/{uuid}",
+    response_model=UserConfig,
+    responses={404: {}},
+    summary="Get player data",
+    description="**Deprecated:** This route is a legacy alias for `GET /v1/{uuid}`",
+    deprecated=True,
+)(v1.get_player)
 
 
 app.put(

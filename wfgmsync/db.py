@@ -82,7 +82,7 @@ class ContributorNametag(BaseModel):
 
 class User(Document):
     uuid: Annotated[UUID4, Indexed()]
-    data: UserConfig
+    data: UserConfig | None
     nametag: ContributorNametag | None = None
 
     @classmethod
