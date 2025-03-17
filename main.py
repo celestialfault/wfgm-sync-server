@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.params import Query, Header
 from pydantic import UUID4
-from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 
 from db import init_db, UserConfig, User, UserAuth, ContributorNametag
 from models import (
@@ -119,7 +119,8 @@ async def get_multiple_players(body: set[UUID4]):
     response_model=dict[UUID4, ContributorNametag],
     summary="Get contributor nametags",
 )
-async def contributors():
+async def contributors(response: Response):
+    response.headers["Cache-Control"] = "public,max-age=3600"
     # noinspection PyComparisonWithNone
     return {x.uuid: x.nametag async for x in User.find(User.nametag != None)}
 
@@ -169,8 +170,14 @@ async def delete_contributor(uuid: UUID4, auth_token: Annotated[str, Header()]):
 
 
 @app.get("/stats", response_model=StatsResponse, summary="Get sync server statistics")
-async def stats():
+async def stats(response: Response):
+    response.headers["Cache-Control"] = f"public,max-age=300"
     return {"synced_users": await User.count(), "timestamp": datetime.now(timezone.utc)}
+
+
+@app.get("/health-check", include_in_schema=False)
+async def healthcheck():
+    return PlainTextResponse(status_code=204)
 
 
 # TODO wiki.vg is no more; update the link in the docstring here with a minecraft.wiki one at some point
@@ -181,7 +188,9 @@ async def stats():
     summary="Get authentication token",
 )
 async def get_auth(
-    server_id: Annotated[str, Query(alias="serverId")], username: Annotated[str, Query()]
+    server_id: Annotated[str, Query(alias="serverId")],
+    username: Annotated[str, Query()],
+    response: Response,
 ):
     """Retrieve an authentication token used for updating player data
 
@@ -191,6 +200,8 @@ async def get_auth(
 
     Any authentication tokens that haven't yet expired will be invalidated after obtaining a new token.
     """
+    response.headers["Cache-Control"] = "no-store"
+
     try:
         uuid = await validate_session_server(server_id, username)
     except AuthServerError as e:
