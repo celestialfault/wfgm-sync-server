@@ -177,7 +177,7 @@ async def stats(response: Response):
 
 @app.get("/health-check", include_in_schema=False)
 async def healthcheck(response: Response):
-    response.headers["Cache-Control"] = "nostore"
+    response.headers["Cache-Control"] = "no-store"
     return PlainTextResponse(status_code=204)
 
 
